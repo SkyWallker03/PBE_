@@ -3,42 +3,68 @@ require_relative 'pn532'
 require "thread"
 require "ruby-nfc"
 
+# Define la clase Rfid si no está definida previamente
+class Rfid
+  @@readers = NFC::Reader.all
+
+  def read_uid
+    @@readers[0].poll(Mifare::Classic::Tag) do |tag|
+      begin
+        uid = tag.uid_hex.upcase
+        return uid
+      end
+    end
+    # Si no se encuentra ningún tag Mifare Classic, devolver nil
+    return nil
+  end
+end
+
+# Crear una instancia de Rfid
 rf = Rfid.new
-win = Gtk::Window.new("Gtk::Label sample")
+
+# Crear la ventana y otros widgets de GTK
+win = Gtk::Window.new
+label = Gtk::Label.new("Please, login with your university card")
+button = Gtk::Button.new(:label => "Clear")
 box = Gtk::Box.new(:vertical)
 
-label = Gtk::Label.new("Please, login with your university card",:expand => true)
-
-label.override_background_color(0,Gdk::RGBA::new(0,0,1,1))
-button = Gtk::Button.new(:label => "Clear")
-label.set_size_request(100,100)
-button.set_size_request(100, 200)
-win.set_title("rfid_gdk.rb")
-win.set_size_request(450,200)
+# Configurar la ventana
+win.title = "rfid_gdk.rb"
+win.set_size_request(450, 200)
 win.set_window_position(:center)
-win.signal_connect("destroy"){Gtk.main_quit}
-box = Gtk::Box.new(:vertical,7)
+win.signal_connect("destroy") { Gtk.main_quit }
+
+# Añadir widgets a la caja y a la ventana
 box.add(label)
-
-
 box.add(button)
 win.add(box)
-win.show_all
 
+# Conectar la señal del botón
 button.signal_connect("clicked") do
-    label.set_markup("Please, login with your university card")
-    label.override_background_color(0,Gdk::RGBA::new(0,0,1,1))
+  label.text = "Please, login with your university card"
+  label.override_background_color(:normal, Gdk::RGBA.new(0, 0, 1, 1))
 end
 
-thread = Thread.new{
-	while true do
-	uid = rf.read_uid
-	label.set_markup("uid "+ uid)
-	label.override_background_color(0,Gdk::RGBA::new(1,0,0,1))
-	
-	
+# Crear un hilo para leer el UID continuamente
+thread = Thread.new do
+  while true
+    uid = rf.read_uid
+    if uid
+      label.text = "uid: #{uid}"
+      label.override_background_color(:normal, Gdk::RGBA.new(1, 0, 0, 1))
+    else
+      label.text = "Please, login with your university card"
+      label.override_background_color(:normal, Gdk::RGBA.new(0, 0, 1, 1))
+    end
+  end
 end
-}
-win.signal_connect("delete_event"){thread.kill;Gtk.main_quit}
+
+# Conectar señal de eliminación de la ventana
+win.signal_connect("delete_event") do
+  thread.kill
+  Gtk.main_quit
+end
+
+# Mostrar la ventana y ejecutar el bucle principal de GTK
+win.show_all
 Gtk.main
-thread.join
